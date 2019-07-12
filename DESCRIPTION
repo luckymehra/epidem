@@ -5,7 +5,6 @@ Version: 0.1.0
 Author: Lucky Mehra
 Maintainer: The package maintainer <mehra27lucky@gmail.com>
 Description: This package hosts tutorials created using {learnr} package.
-    
 License: MIT + LICENSE
 Encoding: UTF-8
 LazyData: true
