@@ -1,0 +1,142 @@
+---
+title: "Tutorial"
+output: learnr::tutorial
+runtime: shiny_prerendered
+---
+
+```{r setup, include=FALSE}
+library(learnr)
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Load packages
+
+Here is the R code to download the required packages for this exercise.
+
+```{r pac-load, exercise.eval=TRUE}
+# install package manager 'pacman'
+if (!require(pacman)){
+  install.packages('pacman')
+}
+
+# load packages needed for this exercise
+library(pacman)
+p_load(tidyverse,
+       lctools, # to calculate Moran's I
+       spdep, # to calculate geary's c
+       geoR, # to compute variogram
+       gridExtra # to stack plots
+       )
+
+```
+
+## Import data
+
+Our data is located in `data.csv` file. Import data and create new variables using the code below.
+
+```{r data-import, exercise.eval=TRUE}
+# import data
+a <- tibble(I = 1:16, YI = c(41, 60, 81, 22, 8, 20, 28, 2,
+                             0, 2, 2, 8, 0, 43, 61, 50)) %>% 
+  # creat new variable East and North
+  mutate(East = 1,
+         North = I)
+
+# get a glimpse of data
+a
+glimpse(a)
+```
+
+## Autocorrelation statistics
+
+
+```{r autocorr-statistics, exercise.eval = TRUE}
+
+# visualize data
+ggplot(data = a) +
+  geom_point(mapping = aes(x = East, y = North, size = YI, color = YI)) +
+  ggtitle("Spatial Distribution of YI Observation") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# calculate Moran's I
+Coords <- a %>% 
+  dplyr::select(East, North)
+
+mI <- moransI(Coords, Bandwidth = 1, a$YI)
+
+# print Moran's I table
+moran.table <- tribble(
+  ~`Moran's I`, ~`Expected I`, ~`Z randomization`, ~`P value randomization`,
+  #------------/--------------/-------------------/------------------------
+  mI$Morans.I, mI$Expected.I,  mI$z.randomization, mI$p.value.randomization
+  )
+
+moran.table
+
+# create Moran's I scatter plot
+l.moran <- l.moransI(Coords, Bandwidth = 1, a$YI)
+
+# calculate geary's c
+Coords_num <- coordinates(Coords)
+
+Coords_nb <- knn2nb(knearneigh(Coords_num))
+
+
+
+coords_listw <- nb2listw(Coords_nb)
+
+geary(a$YI, coords_listw, length(Coords_nb), length(Coords_nb)-1, Szero(coords_listw))
+
+gearyC <- geary.test(a$YI, coords_listw, alternative = "two.sided")
+gearyC
+
+moran.test(a$YI, coords_listw, alternative = "two.sided")
+```
+
+## First variogram
+
+```{r first-variogram-model, exercise.eval=TRUE}
+v1 <- variog(coords = Coords_num, data = a$YI, breaks = seq(0.5, 15.5),
+             max.dist = 11)
+
+v1_plot_data <- cbind(v1$u, v1$v, v1$n) %>% 
+  as.data.frame() %>% 
+  dplyr::rename(Distance = V1,
+                Semivariance = V2,
+                Pair_count = V3)
+v1_plot_data
+
+v1_plot_vario <- ggplot(data = v1_plot_data) +
+  geom_point(mapping = aes(x = Distance, y = Semivariance)) +
+  ggtitle("Empirical Semivariogram of YI") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+v1_plot_pair_count <- ggplot(data = v1_plot_data) +
+  geom_col(mapping = aes(x = Distance, y = Pair_count), width = 0.01, color = "blue")
+
+grid.arrange(v1_plot_vario, v1_plot_pair_count,
+             ncol = 1, heights = c(3, 1))
+```
+
+## Second variogram  
+
+```{r second-variogram-model, exercise.eval = TRUE}
+v1_robust <- variog(coords = Coords_num, data = a$YI, breaks = seq(0.5, 15.5),
+             max.dist = 11, estimator.type = "modulus")
+
+v1_robust_data <- cbind(v1_robust$u, v1_robust$v, v1_robust$n) %>% 
+  as.data.frame() %>% 
+  dplyr::rename(Distance = V1,
+                Semivariance = V2,
+                Pair_count = V3)
+
+v1_robust_vario <- ggplot(data = v1_robust_data) +
+  geom_point(mapping = aes(x = Distance, y = Semivariance)) +
+  ggtitle("Empirical Semivariogram of YI - Robust estimation") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+v1_robust_vario
+
+```
+
