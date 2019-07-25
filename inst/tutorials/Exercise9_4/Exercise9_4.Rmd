@@ -25,34 +25,34 @@ p_load(tidyverse,
        lctools, # to calculate Moran's I
        spdep, # to calculate geary's c
        geoR, # to compute variogram
-       gridExtra # to stack plots
+       gridExtra, # to stack plots
+       gstat, automap, nlme, # packages for variogram model selection
+       sp # need a function called `coordinates`
        )
 
 ```
 
-## Import data
+## Data
 
-Our data is located in `data.csv` file. Import data and create new variables using the code below.
+This is equivalent to data step in SAS. Here, the data is entered inside a function called `tibble`.
 
 ```{r data-import, exercise.eval=TRUE}
-# import data
+# Enter data
 a <- tibble(I = 1:16, YI = c(41, 60, 81, 22, 8, 20, 28, 2,
                              0, 2, 2, 8, 0, 43, 61, 50)) %>% 
   # creat new variable East and North
   mutate(East = 1,
          North = I)
 
-# get a glimpse of data
+# print the data
 a
-glimpse(a)
 ```
 
 ## Autocorrelation statistics
 
-
 ```{r autocorr-statistics, exercise.eval = TRUE}
 
-# visualize data
+# visualize the data
 ggplot(data = a) +
   geom_point(mapping = aes(x = East, y = North, size = YI, color = YI)) +
   ggtitle("Spatial Distribution of YI Observation") +
@@ -79,18 +79,15 @@ l.moran <- l.moransI(Coords, Bandwidth = 1, a$YI)
 # calculate geary's c
 Coords_num <- coordinates(Coords)
 
+# create an object of class 'nb' so that it can be used with function from packege `spdep`
 Coords_nb <- knn2nb(knearneigh(Coords_num))
 
-
-
+# create a 'listw' object for use in the function `geary.test`
 coords_listw <- nb2listw(Coords_nb)
-
-geary(a$YI, coords_listw, length(Coords_nb), length(Coords_nb)-1, Szero(coords_listw))
 
 gearyC <- geary.test(a$YI, coords_listw, alternative = "two.sided")
 gearyC
 
-moran.test(a$YI, coords_listw, alternative = "two.sided")
 ```
 
 ## First variogram
@@ -99,6 +96,7 @@ moran.test(a$YI, coords_listw, alternative = "two.sided")
 v1 <- variog(coords = Coords_num, data = a$YI, breaks = seq(0.5, 15.5),
              max.dist = 11)
 
+# extract data from object v1 for plotting
 v1_plot_data <- cbind(v1$u, v1$v, v1$n) %>% 
   as.data.frame() %>% 
   dplyr::rename(Distance = V1,
@@ -106,37 +104,102 @@ v1_plot_data <- cbind(v1$u, v1$v, v1$n) %>%
                 Pair_count = V3)
 v1_plot_data
 
+# plot variogram
 v1_plot_vario <- ggplot(data = v1_plot_data) +
   geom_point(mapping = aes(x = Distance, y = Semivariance)) +
   ggtitle("Empirical Semivariogram of YI") +
   theme(plot.title = element_text(hjust = 0.5))
 
-
+# plot pair counts
 v1_plot_pair_count <- ggplot(data = v1_plot_data) +
   geom_col(mapping = aes(x = Distance, y = Pair_count), width = 0.01, color = "blue")
 
+# stack two plots
 grid.arrange(v1_plot_vario, v1_plot_pair_count,
              ncol = 1, heights = c(3, 1))
 ```
 
 ## Second variogram  
 
+Plot robust and classical variogram together.  
+
 ```{r second-variogram-model, exercise.eval = TRUE}
+# plot robust and classical variogram on the same plot  
+
+# fit robust variogram
 v1_robust <- variog(coords = Coords_num, data = a$YI, breaks = seq(0.5, 15.5),
              max.dist = 11, estimator.type = "modulus")
 
+# extract the data
 v1_robust_data <- cbind(v1_robust$u, v1_robust$v, v1_robust$n) %>% 
   as.data.frame() %>% 
   dplyr::rename(Distance = V1,
                 Semivariance = V2,
                 Pair_count = V3)
 
+# plot robust variogram
 v1_robust_vario <- ggplot(data = v1_robust_data) +
   geom_point(mapping = aes(x = Distance, y = Semivariance)) +
   ggtitle("Empirical Semivariogram of YI - Robust estimation") +
   theme(plot.title = element_text(hjust = 0.5))
 
 v1_robust_vario
+
+# combine robust and classical variogram  
+var_comb <- v1_robust_data %>% 
+  
+  # combine robust and classical variogram datasets
+  dplyr::rename(Semivariance_robust = Semivariance) %>% 
+  bind_cols(dplyr::select(v1_plot_data, Semivariance)) %>% 
+  gather(key = "Semivariance_type", value = "Semivariance", -c(Distance, Pair_count)) %>% 
+  
+  # plot
+  ggplot() +
+  geom_point(mapping = aes(x = Distance, y = Semivariance, color = Semivariance_type)) +
+  ggtitle("Empirical Semivariogram for YI") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+var_comb
+```  
+
+## Variogram model selection 
+
+We will use the package `gstat` for variogram model selection
+
+```{r model-selection}
+# fit the model 
+coordinates(a) = ~East+North
+v <- variogram(YI ~ East + North, data = a, alpha = c(0, 45, 90, 135))
+v
+plot(v)
+fit.variogram(v, vgm(c("Exp", "Sph", "Gau")))
+
+v_emp <- variogram(YI ~ East + North, data = a, cutoff = 11)
+v_emp
+plot(v_emp)
+
+v_exp <- fit.variogram(v_emp, vgm("Exp"))
+v_exp
+
+plot(v_emp, v_exp, ylim = c(0,1200))
+
+autofitVariogram(YI ~ East + North, a, model = c("Sph", "Exp", "Gau"))
+
+# try nlme package
+m <- gls(YI ~ 1, data = a)
+m1 <- gls(YI ~ 1, correlation = corExp(form = ~East + North, nugget = TRUE), data = a)
+
+m2 <- gls(YI ~1, correlation = corGaus(form = ~East + North, nugget = TRUE), data = a)
+
+m3 <- gls(YI ~1, correlation = corSpher(form = ~East + North, nugget = TRUE), data = a)
+
+AIC(m1, m2, m3)
+
+variom1 <- Variogram(m1, form = ~East + North, resType = "pearson")
+plot(variom1, xlim = c(0,12))
+
+variom2 <- Variogram(m2, form = ~East + North, resType = "pearson")
+variom3 <- Variogram(m3, form = ~East + North, resType = "pearson")
 
 ```
 
