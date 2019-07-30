@@ -6,14 +6,14 @@ runtime: shiny_prerendered
 
 ```{r setup, include=FALSE}
 library(learnr)
-knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(echo = TRUE, exercise = FALSE)
 ```
 
 ## Load packages
 
 Here is the R code to download the required packages for this exercise.
 
-```{r pac-load, exercise.eval=TRUE}
+```{r pac-load, exercise.eval = TRUE}
 # install package manager 'pacman'
 if (!require(pacman)){
   install.packages('pacman')
@@ -26,7 +26,7 @@ p_load(tidyverse,
        spdep, # to calculate geary's c
        geoR, # to compute variogram
        gridExtra, # to stack plots
-       gstat, automap, nlme, # packages for variogram model selection
+       gstat, automap, # packages for variogram model selection
        sp # need a function called `coordinates`
        )
 
@@ -90,7 +90,9 @@ gearyC
 
 ```
 
-## First variogram
+## First variogram  
+
+We will use the package `geoR` to construct empricial variogram, and then draw them using package `ggplot2`.  
 
 ```{r first-variogram-model, exercise.eval=TRUE}
 v1 <- variog(coords = Coords_num, data = a$YI, breaks = seq(0.5, 15.5),
@@ -102,6 +104,8 @@ v1_plot_data <- cbind(v1$u, v1$v, v1$n) %>%
   dplyr::rename(Distance = V1,
                 Semivariance = V2,
                 Pair_count = V3)
+
+# in the table below, gamma is semivariance
 v1_plot_data
 
 # plot variogram
@@ -124,8 +128,6 @@ grid.arrange(v1_plot_vario, v1_plot_pair_count,
 Plot robust and classical variogram together.  
 
 ```{r second-variogram-model, exercise.eval = TRUE}
-# plot robust and classical variogram on the same plot  
-
 # fit robust variogram
 v1_robust <- variog(coords = Coords_num, data = a$YI, breaks = seq(0.5, 15.5),
              max.dist = 11, estimator.type = "modulus")
@@ -164,42 +166,44 @@ var_comb
 
 ## Variogram model selection 
 
-We will use the package `gstat` for variogram model selection
+We will use the package `gstat` and `automap` for variogram model selection
 
 ```{r model-selection}
-# fit the model 
+# specify coordinates in the dataset
 coordinates(a) = ~East+North
-v <- variogram(YI ~ East + North, data = a, alpha = c(0, 45, 90, 135))
-v
-plot(v)
-fit.variogram(v, vgm(c("Exp", "Sph", "Gau")))
 
+# select the best model out of exponential, spherical, and gaussian  
+autofitVariogram(YI ~ East + North, a, model = c("Sph", "Exp", "Gau"))
+
+# fit empirical variogram
 v_emp <- variogram(YI ~ East + North, data = a, cutoff = 11)
 v_emp
 plot(v_emp)
 
+# fit exponential variogram
 v_exp <- fit.variogram(v_emp, vgm("Exp"))
 v_exp
 
-plot(v_emp, v_exp, ylim = c(0,1200))
+# fit spherical and gaussian
+v_sph <- fit.variogram(v_emp, vgm("Sph"))
+v_gau <- fit.variogram(v_emp, vgm("Gau"))
 
-autofitVariogram(YI ~ East + North, a, model = c("Sph", "Exp", "Gau"))
+# extract plotting data from fitted variograms
+v_exp_line <- variogramLine(v_exp, maxdist = 11)
+v_sph_line <- variogramLine(v_sph, maxdist = 11)
+v_gau_line <- variogramLine(v_gau, maxdist = 11)
 
-# try nlme package
-m <- gls(YI ~ 1, data = a)
-m1 <- gls(YI ~ 1, correlation = corExp(form = ~East + North, nugget = TRUE), data = a)
-
-m2 <- gls(YI ~1, correlation = corGaus(form = ~East + North, nugget = TRUE), data = a)
-
-m3 <- gls(YI ~1, correlation = corSpher(form = ~East + North, nugget = TRUE), data = a)
-
-AIC(m1, m2, m3)
-
-variom1 <- Variogram(m1, form = ~East + North, resType = "pearson")
-plot(variom1, xlim = c(0,12))
-
-variom2 <- Variogram(m2, form = ~East + North, resType = "pearson")
-variom3 <- Variogram(m3, form = ~East + North, resType = "pearson")
+# plot emprical and fitted variograms together  
+# specify color for legends
+legend_color <- c("Empirical" = "blue", "Exponential" = "blue",
+                  "Spherical" = "orange", "Gaussian" = "green")
+ggplot(data = v_emp) +
+  geom_point(mapping = aes(x = dist, y = gamma, fill = "Empirical"), color = "blue") +
+  geom_line(data = v_exp_line, mapping = aes(x = dist, y = gamma, color = "Exponential")) +
+  geom_line(data = v_sph_line, mapping = aes(x = dist, y = gamma, color = "Spherical")) +
+  geom_line(data = v_gau_line, mapping = aes(x = dist, y = gamma, color = "Gaussian")) +
+  scale_color_manual(name = "", values = legend_color) +
+  scale_fill_manual(name = "", values = legend_color)
 
 ```
 

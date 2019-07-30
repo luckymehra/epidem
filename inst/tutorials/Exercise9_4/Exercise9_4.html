@@ -13,7 +13,7 @@
 <meta name="progressive" content="false" />
 <meta name="allow-skip" content="false" />
 
-<title>Tutorial</title>
+<title>Exercise 9.4</title>
 
 
 <!-- highlightjs -->
@@ -47,37 +47,81 @@ if (window.hljs && document.readyState && document.readyState === "complete") {
 <div id="section-load-packages" class="section level2">
 <h2>Load packages</h2>
 <p>Here is the R code to download the required packages for this exercise.</p>
+<pre class="r"><code># install package manager &#39;pacman&#39;
+if (!require(pacman)){
+  install.packages(&#39;pacman&#39;)
+}</code></pre>
 <pre><code>## Loading required package: pacman</code></pre>
+<pre class="r"><code># load packages needed for this exercise
+library(pacman)
+p_load(tidyverse,
+       lctools, # to calculate Moran&#39;s I
+       spdep, # to calculate geary&#39;s c
+       geoR, # to compute variogram
+       gridExtra, # to stack plots
+       gstat, automap, # packages for variogram model selection
+       sp # need a function called `coordinates`
+       )</code></pre>
 </div>
-<div id="section-import-data" class="section level2">
-<h2>Import data</h2>
-<p>Our data is located in <code>data.csv</code> file. Import data and create new variables using the code below.</p>
+<div id="section-data" class="section level2">
+<h2>Data</h2>
+<p>This is equivalent to data step in SAS. Here, the data is entered inside a function called <code>tibble</code>.</p>
+<pre class="r"><code># Enter data
+a &lt;- tibble(I = 1:16, YI = c(41, 60, 81, 22, 8, 20, 28, 2,
+                             0, 2, 2, 8, 0, 43, 61, 50)) %&gt;% 
+  # creat new variable East and North
+  mutate(East = 1,
+         North = I)
+
+# print the data
+a</code></pre>
 <div data-pagedtable="false">
 <script data-pagedtable-source type="application/json">
 {"columns":[{"label":["I"],"name":[1],"type":["int"],"align":["right"]},{"label":["YI"],"name":[2],"type":["dbl"],"align":["right"]},{"label":["East"],"name":[3],"type":["dbl"],"align":["right"]},{"label":["North"],"name":[4],"type":["int"],"align":["right"]}],"data":[{"1":"1","2":"41","3":"1","4":"1"},{"1":"2","2":"60","3":"1","4":"2"},{"1":"3","2":"81","3":"1","4":"3"},{"1":"4","2":"22","3":"1","4":"4"},{"1":"5","2":"8","3":"1","4":"5"},{"1":"6","2":"20","3":"1","4":"6"},{"1":"7","2":"28","3":"1","4":"7"},{"1":"8","2":"2","3":"1","4":"8"},{"1":"9","2":"0","3":"1","4":"9"},{"1":"10","2":"2","3":"1","4":"10"},{"1":"11","2":"2","3":"1","4":"11"},{"1":"12","2":"8","3":"1","4":"12"},{"1":"13","2":"0","3":"1","4":"13"},{"1":"14","2":"43","3":"1","4":"14"},{"1":"15","2":"61","3":"1","4":"15"},{"1":"16","2":"50","3":"1","4":"16"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
   </script>
 </div>
-<pre><code>## Observations: 16
-## Variables: 4
-## $ I     &lt;int&gt; 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16
-## $ YI    &lt;dbl&gt; 41, 60, 81, 22, 8, 20, 28, 2, 0, 2, 2, 8, 0, 43, 61, 50
-## $ East  &lt;dbl&gt; 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
-## $ North &lt;int&gt; 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16</code></pre>
 </div>
 <div id="section-autocorrelation-statistics" class="section level2">
 <h2>Autocorrelation statistics</h2>
-<img src="Exercise9_4_files/figure-html/autocorr-statistics-1.png" width="624" />
+<pre class="r"><code># visualize the data
+ggplot(data = a) +
+  geom_point(mapping = aes(x = East, y = North, size = YI, color = YI)) +
+  ggtitle(&quot;Spatial Distribution of YI Observation&quot;) +
+  theme(plot.title = element_text(hjust = 0.5))</code></pre>
+<p><img src="Exercise9_4_files/figure-html/autocorr-statistics-1.png" width="624" /></p>
+<pre class="r"><code># calculate Moran&#39;s I
+Coords &lt;- a %&gt;% 
+  dplyr::select(East, North)
+
+mI &lt;- moransI(Coords, Bandwidth = 1, a$YI)
+
+# print Moran&#39;s I table
+moran.table &lt;- tribble(
+  ~`Moran&#39;s I`, ~`Expected I`, ~`Z randomization`, ~`P value randomization`,
+  #------------/--------------/-------------------/------------------------
+  mI$Morans.I, mI$Expected.I,  mI$z.randomization, mI$p.value.randomization
+  )
+
+moran.table</code></pre>
 <div data-pagedtable="false">
 <script data-pagedtable-source type="application/json">
 {"columns":[{"label":["Moran's I"],"name":[1],"type":["dbl"],"align":["right"]},{"label":["Expected I"],"name":[2],"type":["dbl"],"align":["right"]},{"label":["Z randomization"],"name":[3],"type":["dbl"],"align":["right"]},{"label":["P value randomization"],"name":[4],"type":["dbl"],"align":["right"]}],"data":[{"1":"0.6248467","2":"-0.06666667","3":"2.807596","4":"0.004991279"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
   </script>
 </div>
+<pre class="r"><code># create Moran&#39;s I scatter plot
+l.moran &lt;- l.moransI(Coords, Bandwidth = 1, a$YI)</code></pre>
 <p><img src="Exercise9_4_files/figure-html/autocorr-statistics-2.png" width="624" /></p>
-<pre><code>## $C
-## [1] 0.3708561
-## 
-## $K
-## [1] 2.13286</code></pre>
+<pre class="r"><code># calculate geary&#39;s c
+Coords_num &lt;- coordinates(Coords)
+
+# create an object of class &#39;nb&#39; so that it can be used with function from packege `spdep`
+Coords_nb &lt;- knn2nb(knearneigh(Coords_num))
+
+# create a &#39;listw&#39; object for use in the function `geary.test`
+coords_listw &lt;- nb2listw(Coords_nb)
+
+gearyC &lt;- geary.test(a$YI, coords_listw, alternative = &quot;two.sided&quot;)
+gearyC</code></pre>
 <pre><code>## 
 ##  Geary C test under randomisation
 ## 
@@ -89,36 +133,150 @@ if (window.hljs && document.readyState && document.readyState === "complete") {
 ## sample estimates:
 ## Geary C statistic       Expectation          Variance 
 ##        0.37085605        1.00000000        0.05934473</code></pre>
-<pre><code>## 
-##  Moran I test under randomisation
-## 
-## data:  a$YI  
-## weights: coords_listw    
-## 
-## Moran I statistic standard deviate = 2.751, p-value = 0.005942
-## alternative hypothesis: two.sided
-## sample estimates:
-## Moran I statistic       Expectation          Variance 
-##        0.63192484       -0.06666667        0.06448666</code></pre>
 </div>
 <div id="section-first-variogram" class="section level2">
 <h2>First variogram</h2>
+<p>We will use the package <code>geoR</code> to construct empricial variogram, and then draw them using package <code>ggplot2</code>.</p>
+<pre class="r"><code>v1 &lt;- variog(coords = Coords_num, data = a$YI, breaks = seq(0.5, 15.5),
+             max.dist = 11)</code></pre>
 <pre><code>## variog: computing omnidirectional variogram</code></pre>
+<pre class="r"><code># extract data from object v1 for plotting
+v1_plot_data &lt;- cbind(v1$u, v1$v, v1$n) %&gt;% 
+  as.data.frame() %&gt;% 
+  dplyr::rename(Distance = V1,
+                Semivariance = V2,
+                Pair_count = V3)
+
+# in the table below, gamma is semivariance
+v1_plot_data</code></pre>
 <div data-pagedtable="false">
 <script data-pagedtable-source type="application/json">
 {"columns":[{"label":["Distance"],"name":[1],"type":["dbl"],"align":["right"]},{"label":["Semivariance"],"name":[2],"type":["dbl"],"align":["right"]},{"label":["Pair_count"],"name":[3],"type":["dbl"],"align":["right"]}],"data":[{"1":"1","2":"258.8333","3":"15"},{"1":"2","2":"533.0000","3":"14"},{"1":"3","2":"576.6154","3":"13"},{"1":"4","2":"580.1667","3":"12"},{"1":"5","2":"754.0000","3":"11"},{"1":"6","2":"958.2000","3":"10"},{"1":"7","2":"1020.4444","3":"9"},{"1":"8","2":"966.7500","3":"8"},{"1":"9","2":"1006.2857","3":"7"},{"1":"10","2":"1244.6667","3":"6"},{"1":"11","2":"941.8000","3":"5"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
   </script>
 </div>
+<pre class="r"><code># plot variogram
+v1_plot_vario &lt;- ggplot(data = v1_plot_data) +
+  geom_point(mapping = aes(x = Distance, y = Semivariance)) +
+  ggtitle(&quot;Empirical Semivariogram of YI&quot;) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# plot pair counts
+v1_plot_pair_count &lt;- ggplot(data = v1_plot_data) +
+  geom_col(mapping = aes(x = Distance, y = Pair_count), width = 0.01, color = &quot;blue&quot;)
+
+# stack two plots
+grid.arrange(v1_plot_vario, v1_plot_pair_count,
+             ncol = 1, heights = c(3, 1))</code></pre>
 <p><img src="Exercise9_4_files/figure-html/first-variogram-model-1.png" width="624" /></p>
 </div>
 <div id="section-second-variogram" class="section level2">
 <h2>Second variogram</h2>
+<p>Plot robust and classical variogram together.</p>
+<pre class="r"><code># fit robust variogram
+v1_robust &lt;- variog(coords = Coords_num, data = a$YI, breaks = seq(0.5, 15.5),
+             max.dist = 11, estimator.type = &quot;modulus&quot;)</code></pre>
 <pre><code>## variog: computing omnidirectional variogram</code></pre>
+<pre class="r"><code># extract the data
+v1_robust_data &lt;- cbind(v1_robust$u, v1_robust$v, v1_robust$n) %&gt;% 
+  as.data.frame() %&gt;% 
+  dplyr::rename(Distance = V1,
+                Semivariance = V2,
+                Pair_count = V3)
+
+# plot robust variogram
+v1_robust_vario &lt;- ggplot(data = v1_robust_data) +
+  geom_point(mapping = aes(x = Distance, y = Semivariance)) +
+  ggtitle(&quot;Empirical Semivariogram of YI - Robust estimation&quot;) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+v1_robust_vario</code></pre>
 <p><img src="Exercise9_4_files/figure-html/second-variogram-model-1.png" width="624" /></p>
+<pre class="r"><code># combine robust and classical variogram  
+var_comb &lt;- v1_robust_data %&gt;% 
+  
+  # combine robust and classical variogram datasets
+  dplyr::rename(Semivariance_robust = Semivariance) %&gt;% 
+  bind_cols(dplyr::select(v1_plot_data, Semivariance)) %&gt;% 
+  gather(key = &quot;Semivariance_type&quot;, value = &quot;Semivariance&quot;, -c(Distance, Pair_count)) %&gt;% 
+  
+  # plot
+  ggplot() +
+  geom_point(mapping = aes(x = Distance, y = Semivariance, color = Semivariance_type)) +
+  ggtitle(&quot;Empirical Semivariogram for YI&quot;) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+var_comb</code></pre>
+<p><img src="Exercise9_4_files/figure-html/second-variogram-model-2.png" width="624" /></p>
+</div>
+<div id="section-variogram-model-selection" class="section level2">
+<h2>Variogram model selection</h2>
+<p>We will use the package <code>gstat</code> and <code>automap</code> for variogram model selection</p>
+<pre class="r"><code># specify coordinates in the dataset
+coordinates(a) = ~East+North
+
+# select the best model out of exponential, spherical, and gaussian  
+autofitVariogram(YI ~ East + North, a, model = c(&quot;Sph&quot;, &quot;Exp&quot;, &quot;Gau&quot;))</code></pre>
+<pre><code>## $exp_var
+##   np dist    gamma dir.hor dir.ver   id
+## 1 15    1 258.8333       0       0 var1
+## 2 14    2 533.0000       0       0 var1
+## 3 13    3 576.6154       0       0 var1
+## 4 12    4 580.1667       0       0 var1
+## 5 11    5 754.0000       0       0 var1
+## 
+## $var_model
+##   model    psill    range
+## 1   Nug   0.0000 0.000000
+## 2   Exp 854.3133 2.575499
+## 
+## $sserr
+## [1] 28783.32
+## 
+## attr(,&quot;class&quot;)
+## [1] &quot;autofitVariogram&quot; &quot;list&quot;</code></pre>
+<pre class="r"><code># fit empirical variogram
+v_emp &lt;- variogram(YI ~ East + North, data = a, cutoff = 11)
+v_emp</code></pre>
+<div data-pagedtable="false">
+<script data-pagedtable-source type="application/json">
+{"columns":[{"label":["np"],"name":[1],"type":["dbl"],"align":["right"]},{"label":["dist"],"name":[2],"type":["dbl"],"align":["right"]},{"label":["gamma"],"name":[3],"type":["dbl"],"align":["right"]},{"label":["dir.hor"],"name":[4],"type":["dbl"],"align":["right"]},{"label":["dir.ver"],"name":[5],"type":["dbl"],"align":["right"]},{"label":["id"],"name":[6],"type":["fctr"],"align":["left"]}],"data":[{"1":"15","2":"1","3":"258.8333","4":"0","5":"0","6":"var1"},{"1":"14","2":"2","3":"533.0000","4":"0","5":"0","6":"var1"},{"1":"13","2":"3","3":"576.6154","4":"0","5":"0","6":"var1"},{"1":"12","2":"4","3":"580.1667","4":"0","5":"0","6":"var1"},{"1":"11","2":"5","3":"754.0000","4":"0","5":"0","6":"var1"},{"1":"10","2":"6","3":"958.2000","4":"0","5":"0","6":"var1"},{"1":"9","2":"7","3":"1020.4444","4":"0","5":"0","6":"var1"},{"1":"8","2":"8","3":"966.7500","4":"0","5":"0","6":"var1"},{"1":"7","2":"9","3":"1006.2857","4":"0","5":"0","6":"var1"},{"1":"6","2":"10","3":"1244.6667","4":"0","5":"0","6":"var1"},{"1":"5","2":"11","3":"941.8000","4":"0","5":"0","6":"var1"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
+  </script>
+</div>
+<pre class="r"><code>plot(v_emp)</code></pre>
+<p><img src="Exercise9_4_files/figure-html/model-selection-1.png" width="624" /></p>
+<pre class="r"><code># fit exponential variogram
+v_exp &lt;- fit.variogram(v_emp, vgm(&quot;Exp&quot;))
+v_exp</code></pre>
+<div data-pagedtable="false">
+<script data-pagedtable-source type="application/json">
+{"columns":[{"label":[""],"name":["_rn_"],"type":[""],"align":["left"]},{"label":["model"],"name":[1],"type":["fctr"],"align":["left"]},{"label":["psill"],"name":[2],"type":["dbl"],"align":["right"]},{"label":["range"],"name":[3],"type":["dbl"],"align":["right"]},{"label":["kappa"],"name":[4],"type":["dbl"],"align":["right"]},{"label":["ang1"],"name":[5],"type":["dbl"],"align":["right"]},{"label":["ang2"],"name":[6],"type":["dbl"],"align":["right"]},{"label":["ang3"],"name":[7],"type":["dbl"],"align":["right"]},{"label":["anis1"],"name":[8],"type":["dbl"],"align":["right"]},{"label":["anis2"],"name":[9],"type":["dbl"],"align":["right"]}],"data":[{"1":"Nug","2":"0.000","3":"0.00000","4":"0.0","5":"0","6":"0","7":"0","8":"1","9":"1","_rn_":"1"},{"1":"Exp","2":"1062.461","3":"3.47171","4":"0.5","5":"0","6":"0","7":"0","8":"1","9":"1","_rn_":"2"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
+  </script>
+</div>
+<pre class="r"><code># fit spherical and gaussian
+v_sph &lt;- fit.variogram(v_emp, vgm(&quot;Sph&quot;))
+v_gau &lt;- fit.variogram(v_emp, vgm(&quot;Gau&quot;))
+
+# extract plotting data from fitted variograms
+v_exp_line &lt;- variogramLine(v_exp, maxdist = 11)
+v_sph_line &lt;- variogramLine(v_sph, maxdist = 11)
+v_gau_line &lt;- variogramLine(v_gau, maxdist = 11)
+
+# plot emprical and fitted variograms together  
+# specify color for legends
+legend_color &lt;- c(&quot;Empirical&quot; = &quot;blue&quot;, &quot;Exponential&quot; = &quot;blue&quot;,
+                  &quot;Spherical&quot; = &quot;orange&quot;, &quot;Gaussian&quot; = &quot;green&quot;)
+ggplot(data = v_emp) +
+  geom_point(mapping = aes(x = dist, y = gamma, fill = &quot;Empirical&quot;), color = &quot;blue&quot;) +
+  geom_line(data = v_exp_line, mapping = aes(x = dist, y = gamma, color = &quot;Exponential&quot;)) +
+  geom_line(data = v_sph_line, mapping = aes(x = dist, y = gamma, color = &quot;Spherical&quot;)) +
+  geom_line(data = v_gau_line, mapping = aes(x = dist, y = gamma, color = &quot;Gaussian&quot;)) +
+  scale_color_manual(name = &quot;&quot;, values = legend_color) +
+  scale_fill_manual(name = &quot;&quot;, values = legend_color)</code></pre>
+<p><img src="Exercise9_4_files/figure-html/model-selection-2.png" width="624" /></p>
 
 <script type="application/shiny-prerendered" data-context="server-start">
 library(learnr)
-knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(echo = TRUE, exercise = FALSE)
 </script>
  
 <script type="application/shiny-prerendered" data-context="server">
@@ -131,7 +289,7 @@ learnr:::register_http_handlers(session, metadata = NULL)
 <!--/html_preserve-->
 <!--html_preserve-->
 <script type="application/shiny-prerendered" data-context="execution_dependencies">
-{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["packages"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["packages","version"]},"class":{"type":"character","attributes":{},"value":["data.frame"]},"row.names":{"type":"integer","attributes":{},"value":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130]}},"value":[{"type":"character","attributes":{},"value":["acepack","assertthat","backports","base","base64enc","boot","broom","cellranger","checkmate","class","classInt","cli","cluster","coda","colorspace","compiler","crayon","data.table","datasets","DBI","deldir","digest","dplyr","e1071","evaluate","expm","fansi","forcats","foreign","Formula","gdata","generics","geoR","ggplot2","glue","gmodels","graphics","grDevices","grid","gridExtra","gtable","gtools","haven","Hmisc","hms","htmlTable","htmltools","htmlwidgets","httpuv","httr","jomo","jsonlite","KernSmooth","knitr","labeling","later","lattice","latticeExtra","lazyeval","lctools","LearnBayes","learnr","lme4","lubridate","magrittr","markdown","MASS","Matrix","methods","mice","mime","minqa","mitml","modelr","munsell","nlme","nloptr","nnet","pacman","pan","parallel","pillar","pkgconfig","plyr","promises","pscl","purrr","R6","RandomFields","RandomFieldsUtils","RColorBrewer","Rcpp","readr","readxl","reshape","rlang","rmarkdown","rpart","rprojroot","rstudioapi","rvest","scales","sf","shiny","sp","spData","spdep","splancs","splines","stats","stringi","stringr","survival","tcltk","tibble","tidyr","tidyselect","tidyverse","tools","units","utf8","utils","vctrs","weights","withr","xfun","xml2","xtable","yaml","zeallot"]},{"type":"character","attributes":{},"value":["1.4.1","0.2.1","1.1.4","3.6.1","0.1-3","1.3-22","0.5.2","1.1.0","1.9.4","7.3-15","0.3-3","1.1.0","2.1.0","0.19-3","1.4-1","3.6.1","1.3.4","1.12.2","3.6.1","1.0.0","0.1-22","0.6.20","0.8.3","1.7-2","0.14","0.999-4","0.4.0","0.4.0","0.8-71","1.2-3","2.18.0","0.0.2","1.7-5.2.1","3.2.0","1.3.1","2.18.1","3.6.1","3.6.1","3.6.1","2.3","0.3.0","3.8.1","2.1.1","4.2-0","0.5.0","1.13.1","0.3.6","1.3","1.5.1","1.4.0","2.6-8","1.6","2.23-15","1.23","0.3","0.8.0","0.20-38","0.6-28","0.2.2","0.2-7","2.15.1","0.9.2.1","1.1-21","1.7.4","1.5","1.0","7.3-51.4","1.2-17","3.6.1","3.6.0","0.7","1.2.4","0.3-7","0.1.4","0.5.0","3.1-140","1.2.1","7.3-12","0.5.1","1.6","3.6.1","1.4.2","2.0.2","1.8.4","1.0.1","1.5.2","0.3.2","2.4.0","3.3.6","0.5.3","1.1-2","1.0.1","1.3.1","1.3.1","0.8.8","0.4.0","1.13","4.1-15","1.3-2","0.10","0.3.4","1.0.0","0.7-6","1.3.2","1.3-1","0.3.0","1.1-2","2.01-40","3.6.1","3.6.1","1.4.3","1.4.0","2.44-1.1","3.6.1","2.1.3","0.8.3","0.2.5","1.2.1","3.6.1","0.6-3","1.1.4","3.6.1","0.2.0","1.0","2.1.2","0.8","1.2.0","1.8-4","2.2.0","0.1.0"]}]}]}
+{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["packages"]}},"value":[{"type":"list","attributes":{"names":{"type":"character","attributes":{},"value":["packages","version"]},"class":{"type":"character","attributes":{},"value":["data.frame"]},"row.names":{"type":"integer","attributes":{},"value":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135]}},"value":[{"type":"character","attributes":{},"value":["acepack","assertthat","automap","backports","base","base64enc","boot","broom","cellranger","checkmate","class","classInt","cli","cluster","coda","colorspace","compiler","crayon","data.table","datasets","DBI","deldir","digest","dplyr","e1071","evaluate","expm","FNN","forcats","foreign","Formula","gdata","generics","geoR","ggplot2","glue","gmodels","graphics","grDevices","grid","gridExtra","gstat","gtable","gtools","haven","Hmisc","hms","htmlTable","htmltools","htmlwidgets","httpuv","httr","intervals","jomo","jsonlite","KernSmooth","knitr","labeling","later","lattice","latticeExtra","lazyeval","lctools","LearnBayes","learnr","lme4","lubridate","magrittr","markdown","MASS","Matrix","methods","mice","mime","minqa","mitml","modelr","munsell","nlme","nloptr","nnet","pacman","pan","parallel","pillar","pkgconfig","plyr","promises","pscl","purrr","R6","RandomFields","RandomFieldsUtils","RColorBrewer","Rcpp","readr","readxl","reshape","rlang","rmarkdown","rpart","rprojroot","rstudioapi","rvest","scales","sf","shiny","sp","spacetime","spData","spdep","splancs","splines","stats","stringi","stringr","survival","tcltk","tibble","tidyr","tidyselect","tidyverse","tools","units","utils","vctrs","weights","withr","xfun","xml2","xtable","xts","yaml","zeallot","zoo"]},{"type":"character","attributes":{},"value":["1.4.1","0.2.1","1.0-14","1.1.4","3.6.1","0.1-3","1.3-22","0.5.2","1.1.0","1.9.4","7.3-15","0.3-3","1.1.0","2.1.0","0.19-3","1.4-1","3.6.1","1.3.4","1.12.2","3.6.1","1.0.0","0.1-22","0.6.20","0.8.3","1.7-2","0.14","0.999-4","1.1.3","0.4.0","0.8-71","1.2-3","2.18.0","0.0.2","1.7-5.2.1","3.2.0","1.3.1","2.18.1","3.6.1","3.6.1","3.6.1","2.3","2.0-2","0.3.0","3.8.1","2.1.1","4.2-0","0.5.0","1.13.1","0.3.6","1.3","1.5.1","1.4.0","0.15.1","2.6-8","1.6","2.23-15","1.23","0.3","0.8.0","0.20-38","0.6-28","0.2.2","0.2-7","2.15.1","0.9.2.1","1.1-21","1.7.4","1.5","1.0","7.3-51.4","1.2-17","3.6.1","3.6.0","0.7","1.2.4","0.3-7","0.1.4","0.5.0","3.1-140","1.2.1","7.3-12","0.5.1","1.6","3.6.1","1.4.2","2.0.2","1.8.4","1.0.1","1.5.2","0.3.2","2.4.0","3.3.6","0.5.3","1.1-2","1.0.1","1.3.1","1.3.1","0.8.8","0.4.0","1.13","4.1-15","1.3-2","0.10","0.3.4","1.0.0","0.7-6","1.3.2","1.3-1","1.2-2","0.3.0","1.1-2","2.01-40","3.6.1","3.6.1","1.4.3","1.4.0","2.44-1.1","3.6.1","2.1.3","0.8.3","0.2.5","1.2.1","3.6.1","0.6-3","3.6.1","0.2.0","1.0","2.1.2","0.8","1.2.0","1.8-4","0.11-2","2.2.0","0.1.0","1.8-6"]}]}]}
 </script>
 <!--/html_preserve-->
 </div>
@@ -145,7 +303,7 @@ learnr:::register_http_handlers(session, metadata = NULL)
 
 <!-- begin doc-metadata -->
 <div id="doc-metadata">
-<h2 class="title toc-ignore" style="display:none;">Tutorial</h2>
+<h2 class="title toc-ignore" style="display:none;">Exercise 9.4</h2>
 </div>
 <!-- end doc-metadata -->
 
