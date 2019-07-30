@@ -203,7 +203,9 @@ ggplot(data = v_emp) +
   geom_line(data = v_sph_line, mapping = aes(x = dist, y = gamma, color = "Spherical")) +
   geom_line(data = v_gau_line, mapping = aes(x = dist, y = gamma, color = "Gaussian")) +
   scale_color_manual(name = "", values = legend_color) +
-  scale_fill_manual(name = "", values = legend_color)
+  scale_fill_manual(name = "", values = legend_color) +
+  labs(x = "Distance",
+       y = "Semivariance")
 
 ```
 

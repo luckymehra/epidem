@@ -218,19 +218,19 @@ coordinates(a) = ~East+North
 autofitVariogram(YI ~ East + North, a, model = c(&quot;Sph&quot;, &quot;Exp&quot;, &quot;Gau&quot;))</code></pre>
 <pre><code>## $exp_var
 ##   np dist    gamma dir.hor dir.ver   id
-## 1 15    1 258.8333       0       0 var1
-## 2 14    2 533.0000       0       0 var1
-## 3 13    3 576.6154       0       0 var1
-## 4 12    4 580.1667       0       0 var1
-## 5 11    5 754.0000       0       0 var1
+## 1 15    1 259.9333       0       0 var1
+## 2 14    2 536.4286       0       0 var1
+## 3 13    3 574.6538       0       0 var1
+## 4 12    4 571.5000       0       0 var1
+## 5 11    5 743.7727       0       0 var1
 ## 
 ## $var_model
 ##   model    psill    range
 ## 1   Nug   0.0000 0.000000
-## 2   Exp 854.3133 2.575499
+## 2   Exp 835.8984 2.488287
 ## 
 ## $sserr
-## [1] 28783.32
+## [1] 31108.23
 ## 
 ## attr(,&quot;class&quot;)
 ## [1] &quot;autofitVariogram&quot; &quot;list&quot;</code></pre>
@@ -271,7 +271,9 @@ ggplot(data = v_emp) +
   geom_line(data = v_sph_line, mapping = aes(x = dist, y = gamma, color = &quot;Spherical&quot;)) +
   geom_line(data = v_gau_line, mapping = aes(x = dist, y = gamma, color = &quot;Gaussian&quot;)) +
   scale_color_manual(name = &quot;&quot;, values = legend_color) +
-  scale_fill_manual(name = &quot;&quot;, values = legend_color)</code></pre>
+  scale_fill_manual(name = &quot;&quot;, values = legend_color) +
+  labs(x = &quot;Distance&quot;,
+       y = &quot;Semivariance&quot;)</code></pre>
 <p><img src="Exercise9_4_files/figure-html/model-selection-2.png" width="624" /></p>
 
 <script type="application/shiny-prerendered" data-context="server-start">
