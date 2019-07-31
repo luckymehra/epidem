@@ -34,7 +34,7 @@ p_load(tidyverse,
 
 ## Data
 
-This is equivalent to data step in SAS. Here, the data is imported from a file `a.csv` using the function `read_csv`.
+This is equivalent to data step in SAS. Here, the data is imported from a file `data.csv` using the function `read_csv`.
 
 ```{r data-import, exercise.eval=TRUE}
 # Import data
